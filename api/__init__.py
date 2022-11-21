@@ -14,6 +14,10 @@ def create_app(config_class=Config):
     db.init_app(app)
     migrate.init_app(app, db)
 
+    from api.v1 import bp
+    app.register_blueprint(bp, url_prefix="/api/")
+
     return app
 
 
+from . import models
