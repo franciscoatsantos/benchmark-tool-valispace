@@ -1,5 +1,7 @@
 .idea
+.vscode/*
 *.db
 migrations/
 __pycache__
 venv
+api/config.py
