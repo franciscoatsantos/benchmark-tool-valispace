@@ -1,18 +1,17 @@
 import logging
 
-from flask import jsonify, request, url_for
+import jsonref
+from flask import jsonify, request
 from api import db
 from api.models import Collection, Request
 from api.v1 import bp
-
-
-# from api.v1.helpers import Importer
+from api.v1.helpers import Importer
 
 
 #### COLLECTIONS ####
 @bp.route("/v1/collections", methods=["GET"])
 def get_collections():
-    return jsonify(Collection.to_collection_dict(Collection.query))
+    return jsonify(Collection.to_collection_dict(Collection.query.all()))
 
 
 @bp.route("/v1/collections/<int:id>", methods=["GET"])
@@ -22,17 +21,19 @@ def get_collection(collection_id: int):
 
 @bp.route("/v1/collections/", methods=["POST"])
 def set_collection():
-    data = request.get_json() or {}
-    collection = data.get('collection') or {}
-    requests = data.get('requests') or {}
-    name = collection["name"]
-    base_url = collection["base_url"]
-    new_collection = Collection(name=name, base_url=base_url)
-    db.session.add(new_collection)
+    data = request.get_json()
+    new_data = Importer.import_collection(data=data, filters=["get"])
+    collection = Collection()
+    collection.from_dict(new_data["collection"])
+    db.session.add(collection)
     db.session.commit()
-    response = jsonify(new_collection.to_dict())
-    response.status_code = 201
-    response.headers['Location'] = url_for('v1.get_collection', id=new_collection.id)
+    for new_request in new_data["requests"]:
+        new_request["collection_id"] = collection.id
+        request_model = Request()
+        request_model.from_dict(new_request)
+        db.session.add(request_model)
+    db.session.commit()
+    response = jsonify(collection.to_dict())
     return response
 
 
@@ -48,7 +49,7 @@ def get_request_by_collection_id(collection_id: int):
 
 
 @bp.route("/v1/collections/<int:id>/requests", methods=["POST"])
-def new_request(collection_id):
+def set_request(collection_id):
     data = request.get_json()
     request_name = data.get("name")
     request_collection = request.get("collection_id")
@@ -56,6 +57,8 @@ def new_request(collection_id):
         result = Request(request_name, request_collection)
     except Exception as e:
         logging.log(e)
+
+
 #
 # @bp.route("/collections/<int:id>/run", ["POST"])
 # def run_collection(collection_id: int):
